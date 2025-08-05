@@ -1,0 +1,146 @@
+# 📁 Folder Structure
+
+agentic_rag_app/
+├── main.py
+├── .env
+├── requirements.txt
+├── config/
+│   └── settings.py
+├── agents/
+│   ├── agent_controller.py
+│   └── tool_registry.py
+├── collections/
+│   ├── collection_finance.faiss
+│   ├── collection_legal.faiss
+│   └── collection_product.faiss
+├── prompts/
+│   └── agent_prompt.txt
+├── retrieval/
+│   └── search_functions.py
+└── utils/
+    └── logger.py
+
+# ----------------------------------------
+# 📄 main.py
+
+from agents.agent_controller import run_agent
+
+if __name__ == "__main__":
+    print("\n🚀 Starting Agentic RAG System...")
+    while True:
+        query = input("\nUser Query: ")
+        if query.lower() in ["exit", "quit"]:
+            break
+        answer = run_agent(query)
+        print(f"\n🤖 Answer: {answer}")
+
+# ----------------------------------------
+# 📄 .env
+
+OPENAI_API_KEY=your_openai_key_here
+
+# ----------------------------------------
+# 📄 requirements.txt
+
+langchain==0.1.17
+openai==1.30.1
+dotenv==1.0.1
+faiss-cpu==1.7.4
+
+# ----------------------------------------
+# 📄 config/settings.py
+
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+# ----------------------------------------
+# 📄 prompts/agent_prompt.txt
+
+You are an intelligent assistant with access to multiple knowledge collections:
+- Financial Data
+- Legal Documents
+- Product Manuals
+
+Based on user input, choose relevant knowledge sources and tools, then synthesize an answer from retrieved results.
+
+Question: {input}
+
+# ----------------------------------------
+# 📄 agents/tool_registry.py
+
+from retrieval.search_functions import search_finance, search_legal, search_product
+from langchain.tools import Tool
+
+TOOLS = [
+    Tool(
+        name="FinanceTool",
+        func=search_finance,
+        description="Useful for questions about financial data."
+    ),
+    Tool(
+        name="LegalTool",
+        func=search_legal,
+        description="Useful for questions about laws and legal documents."
+    ),
+    Tool(
+        name="ProductTool",
+        func=search_product,
+        description="Useful for product manuals and hardware details."
+    ),
+]
+
+# ----------------------------------------
+# 📄 agents/agent_controller.py
+
+from langchain.agents import initialize_agent
+from langchain.chat_models import ChatOpenAI
+from config.settings import OPENAI_API_KEY
+from agents.tool_registry import TOOLS
+from langchain.agents.agent_types import AgentType
+
+llm = ChatOpenAI(temperature=0, api_key=OPENAI_API_KEY)
+
+agent = initialize_agent(
+    tools=TOOLS,
+    llm=llm,
+    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+    verbose=True
+)
+
+def run_agent(query):
+    return agent.run(query)
+
+# ----------------------------------------
+# 📄 retrieval/search_functions.py
+
+from langchain.vectorstores import FAISS
+from langchain.embeddings import OpenAIEmbeddings
+
+embedding = OpenAIEmbeddings()
+
+collection_finance = FAISS.load_local("collections/collection_finance.faiss", embedding)
+collection_legal = FAISS.load_local("collections/collection_legal.faiss", embedding)
+collection_product = FAISS.load_local("collections/collection_product.faiss", embedding)
+
+def search_finance(query):
+    docs = collection_finance.similarity_search(query, k=4)
+    return "\n".join([doc.page_content for doc in docs])
+
+def search_legal(query):
+    docs = collection_legal.similarity_search(query, k=4)
+    return "\n".join([doc.page_content for doc in docs])
+
+def search_product(query):
+    docs = collection_product.similarity_search(query, k=4)
+    return "\n".join([doc.page_content for doc in docs])
+
+# ----------------------------------------
+# 📄 utils/logger.py
+
+def log(text):
+    with open("log.txt", "a") as f:
+        f.write(text + "\n")
